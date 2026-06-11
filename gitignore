@@ -1,0 +1,41 @@
+# Environment variables — NEVER commit real secrets
+.env
+_env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Test images (generated locally)
+test_image.png
+tmp_test.png
+*.png
+*.jpg
+*.jpeg
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
