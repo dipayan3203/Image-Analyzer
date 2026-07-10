@@ -1,104 +1,535 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Image Analyzer</title>
-    <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-        .container { border: 1px solid #ccc; padding: 20px; border-radius: 8px; background: #f9f9f9; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="password"], select { padding: 8px; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
-        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px; }
-        button:hover { background-color: #0056b3; }
-        #result { margin-top: 20px; white-space: pre-wrap; background: #fff; padding: 15px; border: 1px solid #eee; border-radius: 4px; min-height: 50px; }
-        .preview { max-width: 100%; margin-top: 10px; max-height: 300px; object-fit: contain; display: block; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemini Image Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #13161a;
+    --panel: #1b1f24;
+    --panel-2: #20252b;
+    --line: #2b3138;
+    --paper: #ede9e1;
+    --dim: #868d95;
+    --scan: #4fd8c4;
+    --scan-dim: rgba(79,216,196,0.18);
+    --amber: #e7a23d;
+    --amber-dim: rgba(231,162,61,0.16);
+    --error: #d9614f;
+    --radius: 3px;
+  }
+
+  *{ box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  html, body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--paper);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body{
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(79,216,196,0.05), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(231,162,61,0.05), transparent 40%);
+  }
+
+  .mono{ font-family: 'IBM Plex Mono', monospace; }
+  .display{ font-family: 'Space Grotesk', sans-serif; }
+
+  .wrap{
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---- Header ---- */
+  header{
+    display:flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+    margin-bottom: 36px;
+    opacity: 0;
+    animation: rise 0.6s ease-out forwards;
+  }
+
+  .brand-eyebrow{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--scan);
+    text-transform: uppercase;
+    margin: 0 0 8px;
+  }
+
+  h1{
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 30px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .status-readout{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  .status-readout .dot{
+    display:inline-block;
+    width:7px; height:7px;
+    border-radius: 50%;
+    background: var(--dim);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .status-readout.busy .dot{ background: var(--scan); box-shadow: 0 0 8px var(--scan); animation: pulse 1s ease-in-out infinite; }
+  .status-readout.busy{ color: var(--scan); }
+  .status-readout.done .dot{ background: var(--amber); }
+  .status-readout.error .dot{ background: var(--error); }
+  .status-readout.error{ color: var(--error); }
+
+  /* ---- Layout ---- */
+  .grid{
+    display:grid;
+    grid-template-columns: minmax(280px, 360px) 1fr;
+    gap: 24px;
+  }
+
+  @media (max-width: 800px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+    opacity: 0;
+    animation: rise 0.6s ease-out forwards;
+  }
+  .panel.p1{ animation-delay: 0.08s; }
+  .panel.p2{ animation-delay: 0.16s; }
+
+  .panel-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 18px;
+    display:flex;
+    align-items:center;
+    gap: 8px;
+  }
+  .panel-label::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background: var(--line);
+  }
+
+  /* ---- Form fields ---- */
+  .field{ margin-bottom: 18px; }
+  .field:last-child{ margin-bottom: 0; }
+
+  label.field-label{
+    display:block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 7px;
+  }
+
+  input[type="password"], input[type="text"], select{
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--paper);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13.5px;
+    padding: 11px 12px;
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type="password"]::placeholder, input[type="text"]::placeholder{
+    color: #5b6167;
+  }
+
+  input:focus-visible, select:focus-visible, button:focus-visible, .dropzone:focus-visible{
+    border-color: var(--scan);
+    box-shadow: 0 0 0 3px var(--scan-dim);
+  }
+
+  select{
+    background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%), linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+    background-position: calc(100% - 18px) center, calc(100% - 13px) center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+  }
+
+  /* ---- Dropzone ---- */
+  .dropzone{
+    display:block;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 22px 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    color: var(--dim);
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color: var(--scan);
+    background: var(--scan-dim);
+    color: var(--scan);
+  }
+  .dropzone input{ display:none; }
+  .dz-title{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+  }
+  .dz-sub{
+    font-size: 11px;
+    margin-top: 4px;
+    opacity: 0.7;
+  }
+
+  /* ---- Button ---- */
+  .analyze-btn{
+    width: 100%;
+    margin-top: 22px;
+    background: var(--amber);
+    color: #1a1207;
+    border: none;
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.15s ease, background 0.15s ease;
+    box-shadow: 0 0 0 rgba(231,162,61,0);
+  }
+  .analyze-btn:hover{ box-shadow: 0 4px 18px rgba(231,162,61,0.25); }
+  .analyze-btn:active{ transform: scale(0.97); }
+  .analyze-btn:disabled{
+    background: var(--line);
+    color: var(--dim);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* ---- Viewfinder / preview ---- */
+  .viewfinder{
+    position: relative;
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    min-height: 220px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+
+  .viewfinder img{
+    width: 100%;
+    max-height: 340px;
+    object-fit: contain;
+    display:block;
+  }
+
+  .viewfinder .placeholder{
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-align: center;
+    padding: 40px 20px;
+  }
+
+  .corner{
+    position:absolute;
+    width: 22px; height: 22px;
+    border: 2px solid var(--line);
+    transition: border-color 0.25s ease, width 0.25s ease, height 0.25s ease;
+  }
+  .corner.tl{ top:10px; left:10px; border-right:none; border-bottom:none; }
+  .corner.tr{ top:10px; right:10px; border-left:none; border-bottom:none; }
+  .corner.bl{ bottom:10px; left:10px; border-right:none; border-top:none; }
+  .corner.br{ bottom:10px; right:10px; border-left:none; border-top:none; }
+
+  .viewfinder.armed .corner{ border-color: var(--amber); width: 26px; height: 26px; }
+  .viewfinder.scanning .corner{ border-color: var(--scan); animation: focus-pulse 1.1s ease-in-out infinite; }
+
+  .scanline{
+    position:absolute;
+    left:0; right:0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--scan), transparent);
+    box-shadow: 0 0 12px var(--scan);
+    top: -10%;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .viewfinder.scanning .scanline{
+    opacity: 1;
+    animation: sweep 1.6s linear infinite;
+  }
+
+  /* ---- Output console ---- */
+  .console{
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    min-height: 160px;
+    max-height: 420px;
+    overflow: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--dim);
+  }
+  .console .k{ color: var(--amber); }
+  .console .s{ color: var(--paper); }
+  .console .p{ color: #5b6167; }
+  .console.error{ color: var(--error); }
+
+  .console::-webkit-scrollbar{ width: 8px; }
+  .console::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 4px; }
+
+  footer{
+    margin-top: 40px;
+    text-align:center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    color: #4a4f55;
+    text-transform: uppercase;
+  }
+
+  /* ---- Animations ---- */
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(10px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @keyframes pulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:0.35; }
+  }
+  @keyframes focus-pulse{
+    0%,100%{ transform: scale(1); }
+    50%{ transform: scale(0.94); }
+  }
+  @keyframes sweep{
+    0%{ top: -10%; }
+    100%{ top: 105%; }
+  }
+</style>
 </head>
 <body>
-    <h1>Gemini Image Analyzer</h1>
-    <div class="container">
-        <div class="form-group">
-            <label for="apiKey">API Key:</label>
-            <input type="password" id="apiKey" placeholder="Paste your X-API-Key here">
+  <div class="wrap">
+    <header>
+      <div>
+        <p class="brand-eyebrow">f/1.4 &middot; gemini vision &middot; rev 3</p>
+        <h1>Image Analyzer</h1>
+      </div>
+      <div class="status-readout" id="statusReadout"><span class="dot"></span>IDLE</div>
+    </header>
+
+    <div class="grid">
+      <!-- Controls -->
+      <div class="panel p1">
+        <p class="panel-label">Controls</p>
+
+        <div class="field">
+          <label class="field-label" for="apiKey">API Key</label>
+          <input type="password" id="apiKey" placeholder="prefix.secret">
         </div>
 
-        <div class="form-group">
-            <label for="analysisType">Analysis Type:</label>
-            <select id="analysisType">
-                <option value="general">General Analysis</option>
-                <option value="classification">Classification</option>
-                <option value="extraction">Text Extraction</option>
-                <option value="jewelry">Jewelry Analysis</option>
-            </select>
+        <div class="field">
+          <label class="field-label" for="analysisType">Analysis Mode</label>
+          <select id="analysisType">
+            <option value="general">General Analysis</option>
+            <option value="classification">Classification</option>
+            <option value="extraction">Text Extraction</option>
+            <option value="jewelry">Jewelry Analysis</option>
+          </select>
         </div>
 
-        <div class="form-group">
-            <label for="fileInput">Select Image:</label>
+        <div class="field">
+          <label class="field-label" for="fileInput">Image Source</label>
+          <label class="dropzone" id="dropzone" tabindex="0">
             <input type="file" id="fileInput" accept="image/*">
-            <img id="imagePreview" class="preview" style="display:none;">
+            <div class="dz-title" id="dzTitle">Click or drop image here</div>
+            <div class="dz-sub" id="dzSub">JPG, PNG, WEBP</div>
+          </label>
         </div>
 
-        <button onclick="analyzeImage()">Analyze Image</button>
+        <button class="analyze-btn" id="analyzeBtn" type="button">Analyze Image</button>
+      </div>
 
-        <h3>Result:</h3>
-        <div id="result">Results will appear here...</div>
+      <!-- Output -->
+      <div class="panel p2">
+        <p class="panel-label">Viewfinder</p>
+
+        <div class="viewfinder" id="viewfinder">
+          <div class="placeholder" id="vfPlaceholder">NO IMAGE LOADED<br>&mdash;</div>
+          <img id="imagePreview" style="display:none;" alt="Selected image preview">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+          <div class="scanline"></div>
+        </div>
+
+        <p class="panel-label">Result</p>
+        <div class="console" id="result">Results will appear here&hellip;</div>
+      </div>
     </div>
 
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const preview = document.getElementById('imagePreview');
+    <footer>Gemini Image Analyzer &middot; requests are sent to /analyze</footer>
+  </div>
 
-        fileInput.addEventListener('change', () => {
-            const file = fileInput.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
-                }
-                reader.readAsDataURL(file);
-            }
-        });
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  const dzTitle = document.getElementById('dzTitle');
+  const dzSub = document.getElementById('dzSub');
+  const preview = document.getElementById('imagePreview');
+  const placeholder = document.getElementById('vfPlaceholder');
+  const viewfinder = document.getElementById('viewfinder');
+  const resultDiv = document.getElementById('result');
+  const statusReadout = document.getElementById('statusReadout');
+  const analyzeBtn = document.getElementById('analyzeBtn');
 
-        async function analyzeImage() {
-            const file = fileInput.files[0];
-            const type = document.getElementById('analysisType').value;
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const resultDiv = document.getElementById('result');
+  function setStatus(state, label){
+    statusReadout.className = 'status-readout ' + state;
+    statusReadout.innerHTML = '<span class="dot"></span>' + label;
+  }
 
-            if (!file) {
-                alert("Please select an image");
-                return;
-            }
+  function loadFile(file){
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+      placeholder.style.display = 'none';
+      viewfinder.classList.add('armed');
+      setTimeout(() => viewfinder.classList.remove('armed'), 500);
+    };
+    reader.readAsDataURL(file);
+    dzTitle.textContent = file.name;
+    dzSub.innerHTML = (file.size / 1024).toFixed(0) + ' KB &middot; ready';
+  }
 
-            if (!apiKey) {
-                alert("Please enter your API Key");
-                return;
-            }
+  fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
 
-            resultDiv.textContent = "Analyzing...";
+  ['dragenter','dragover'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); });
+  });
+  dropzone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (file){
+      fileInput.files = e.dataTransfer.files;
+      loadFile(file);
+    }
+  });
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); }
+  });
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('analysis_type', type);
+  function highlightJSON(obj){
+    const json = JSON.stringify(obj, null, 2);
+    return json
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/(&quot;|")(.*?)\1(:)/g, '<span class="k">$1$2$1</span>$3')
+      .replace(/: (&quot;|")(.*?)\1/g, ': <span class="s">$1$2$1</span>')
+      .replace(/([{}\[\],])/g, '<span class="p">$1</span>');
+  }
 
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'X-API-Key': apiKey
-                    },
-                    body: formData
-                });
+  async function analyzeImage(){
+    const file = fileInput.files[0];
+    const type = document.getElementById('analysisType').value;
+    const apiKey = document.getElementById('apiKey').value.trim();
 
-                const data = await response.json();
-                resultDiv.textContent = JSON.stringify(data, null, 2);
-            } catch (error) {
-                resultDiv.textContent = "Error: " + error.message;
-            }
-        }
-    </script>
+    if (!file){ alert('Please select an image'); return; }
+    if (!apiKey){ alert('Please enter your API Key'); return; }
+
+    setStatus('busy', 'SCANNING');
+    viewfinder.classList.add('scanning');
+    analyzeBtn.disabled = true;
+    resultDiv.className = 'console';
+    resultDiv.textContent = 'Analyzing\u2026';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('analysis_type', type);
+
+    try{
+      const response = await fetch('/analyze', {
+        method: 'POST',
+        headers: { 'X-API-Key': apiKey },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok){
+        resultDiv.className = 'console error';
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+        setStatus('error', 'ERROR ' + response.status);
+      } else {
+        resultDiv.innerHTML = highlightJSON(data);
+        setStatus('done', 'COMPLETE');
+      }
+    } catch (error){
+      resultDiv.className = 'console error';
+      resultDiv.textContent = 'Error: ' + error.message;
+      setStatus('error', 'ERROR');
+    } finally {
+      viewfinder.classList.remove('scanning');
+      analyzeBtn.disabled = false;
+    }
+  }
+
+  analyzeBtn.addEventListener('click', analyzeImage);
+</script>
 </body>
 </html>
