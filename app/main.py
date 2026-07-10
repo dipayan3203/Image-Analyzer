@@ -128,16 +128,6 @@ async def analyze_base64_endpoint(
     request: AnalyzeRequest,
     _ = Depends(get_api_key),
 ):
-    @app.post("/admin/generate-key")
-async def generate_key_endpoint(owner: str = "admin", setup_secret: str = ""):
-    """One-time endpoint to generate an API key. Protect with a setup secret."""
-    SETUP_SECRET = os.getenv("SETUP_SECRET", "")
-    if not SETUP_SECRET or setup_secret != SETUP_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid setup secret")
-    
-    from app.api_keys import generate_api_key
-    api_key, prefix = generate_api_key(owner)
-    return {"api_key": api_key, "prefix": prefix}
     """
     Analyze an image from base64 data or file path.
     
@@ -160,6 +150,18 @@ async def generate_key_endpoint(owner: str = "admin", setup_secret: str = ""):
         raw = load_image_from_base64(img_str)
 
     return await _process_image_and_analyze(raw, request.analysis_type, request.metadata)
+
+
+@app.post("/admin/generate-key")
+async def generate_key_endpoint(owner: str = "admin", setup_secret: str = ""):
+    """One-time endpoint to generate an API key. Protect with a setup secret."""
+    SETUP_SECRET = os.getenv("SETUP_SECRET", "")
+    if not SETUP_SECRET or setup_secret != SETUP_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid setup secret")
+
+    from app.api_keys import generate_api_key
+    api_key, prefix = generate_api_key(owner)
+    return {"api_key": api_key, "prefix": prefix}
 
 
 if __name__ == "__main__":
